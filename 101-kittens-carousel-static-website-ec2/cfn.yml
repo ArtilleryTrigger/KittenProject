@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: 2010-09-09
+AWSTemplateFormatVersion: "2010-09-09"
 
 Description: |
   This CloudFormation Template was written for running Kittens Carousel Static Website on EC2. 
@@ -6,22 +6,51 @@ Description: |
   security group which allows http connections on port 80 and ssh port 22 from anywhere. Kittens Carousel Static Website
   is downloaded from my Public Github repository, then deployed on Apache Web Server.
 
+Parameters:
+  LatestAmiId:
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-minimal-kernel-default-x86_64"
+
 Resources:
-  CFNInstance:
-    Type: AWS::EC2::Instance
+  MyEC2Instance:
+    Type: "AWS::EC2::Instance"
     Properties:
-      ImageId: ami-0b72821e2f351e396 
-      InstanceType: t2.micro
-      KeyName: ece-pemkey # Key-pair'inizi değiştirmeyi unutmayınız.
+      InstanceType: "t2.micro"
+      ImageId: !Ref LatestAmiId
       SecurityGroups:
-        - !Ref CFNSecGrp
+        - !Ref MySecGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo yum update -y
+          sudo yum install unzip wget -y
+          sudo yum install -y httpd
+          sudo systemctl start httpd
+          sudo systemctl enable httpd
+          cd /tmp/
+          wget https://github.com/ArtilleryTrigger/KittenProject/archive/refs/heads/main.zip
+          unzip main.zip
+          cd KittenProject-main/101-kittens-carousel-static-website-ec2/static-web
+          sudo mv * /var/www/html/
+          cd /tmp/
+          rm -rf KittenProject-main main.zip
+          sudo systemctl restart httpd
+      
       Tags:
         - Key: Name
-          Value: proje-first
-  
-  CFNSecGrp:
-    Type: AWS::EC2::SecurityGroup
+          Value: "StackName'in Web Sunucusu"
+
+  MySecGroup:
+    Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: Bu guvenlik grubu SSH baglantisi saglar. # Required
-      SecurityGroupIngress: 
+      GroupDescription: Bu guvenlik grubu SSH baglantisi saglar.
+      SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+
+Outputs:
+  WebSiteURL:
+    Description: URL of the deployed website
+    Value: !Sub "http://${MyEC2Instance.PublicDnsName}/"
